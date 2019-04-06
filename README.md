@@ -22,11 +22,11 @@ $ python3 extract_frames.py   # Extracts frames from the video (~26.2 GB, go gra
 
 ### ConvLSTM
 
-The only approach investigated so far. Enables action recognition in video by a LSTM operating on frame embeddings extracted by a pre-trained ResNet-152 (ImageNet).
+The only approach investigated so far. Enables action recognition in video by a bi-directional LSTM operating on frame embeddings extracted by a pre-trained ResNet-152 (ImageNet).
 
 The model is composed of:
 * A convolutional feature extractor (ResNet-152) which provides a latent representation of video frames
-* An LSTM classifier which based on the latent representation of the video predicts the activity depicted
+* A bi-directional LSTM classifier which based on the latent representation of the video predicts the activity depicted
 
 I have made a trained model available [here](https://drive.google.com/open?id=1GlpN0m9uLbI9dg1ARbW9hDEf-VWe4Asl).
 
