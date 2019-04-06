@@ -47,7 +47,7 @@ $ python3 test_on_video.py  --video_path data/UCF-101/SoccerPenalty/v_SoccerPena
 ```
 
 <p align="center">
-    <img src="assets/penalty.gif" width="480"\>
+    <img src="assets/penalty.gif" width="400"\>
 </p>
 
 #### Results
