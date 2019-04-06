@@ -14,6 +14,7 @@ I will mainly use the [UCF-101 dataset](https://www.crcv.ucf.edu/data/UCF101.php
 $ cd data/              
 $ bash download_ucf101.sh     # Downloads the UCF-101 dataset (~7.2 GB)
 $ unrar x UCF101.rar          # Unrars dataset
+$ unzip ucfTrainTestlist.zip  # Unzip train / test split
 $ python3 extract_frames.py   # Extracts frames from the video (~26.2 GB, go grab a coffee for this)
 ```
 
@@ -29,10 +30,11 @@ The model is composed of:
 
 I have made a trained model available [here](https://drive.google.com/open?id=1GlpN0m9uLbI9dg1ARbW9hDEf-VWe4Asl).
 
-#### Train
+#### Train  
 
 ```
 $ python3 train.py  --dataset_path data/UCF-101-frames/ \
+                    --split_path data/ucfTrainTestlist \
                     --num_epochs 200 \
                     --sequence_length 40 \
                     --img_dim 112 \

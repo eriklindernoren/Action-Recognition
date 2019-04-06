@@ -12,6 +12,8 @@ import datetime
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_path", type=str, default="data/UCF-101-frames", help="Path to UCF-101 dataset")
+parser.add_argument("--split_path", type=str, default="data/ucfTrainTestlist", help="Path to train/test split")
+parser.add_argument("--split_number", type=int, default=1, help="train/test split number. One of {1, 2, 3}")
 parser.add_argument("--num_epochs", type=int, default=100, help="Number of training epochs")
 parser.add_argument("--batch_size", type=int, default=16, help="Size of each training batch")
 parser.add_argument("--sequence_length", type=int, default=40, help="Number of frames in each sequence")
@@ -27,16 +29,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 image_shape = (opt.channels, opt.img_dim, opt.img_dim)
 
-# Get training and testing indices
-np.random.seed(0)
-num_seqs = len(glob.glob(f"{opt.dataset_path}/*/*"))
-train_idx = np.random.choice(np.arange(num_seqs), size=int(0.8 * num_seqs), replace=False)
-test_idx = np.arange(num_seqs)[~np.isin(np.arange(num_seqs), train_idx)]
-
 # Define training set
 train_dataset = Dataset(
     dataset_path=opt.dataset_path,
-    indices=train_idx,
+    split_path=opt.split_path,
+    split_number=opt.split_number,
     input_shape=image_shape,
     sequence_length=opt.sequence_length,
     training=True,
@@ -46,7 +43,8 @@ train_dataloader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=
 # Define test set
 test_dataset = Dataset(
     dataset_path=opt.dataset_path,
-    indices=test_idx,
+    split_path=opt.split_path,
+    split_number=opt.split_number,
     input_shape=image_shape,
     sequence_length=opt.sequence_length,
     training=False,

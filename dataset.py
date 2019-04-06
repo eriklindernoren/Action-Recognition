@@ -14,28 +14,48 @@ std = np.array([0.229, 0.224, 0.225])
 
 
 class Dataset(Dataset):
-    def __init__(self, dataset_path, indices, input_shape, sequence_length, training=True):
-        channels, height, width = input_shape
+    def __init__(self, dataset_path, split_path, split_number, input_shape, sequence_length=40, training=True):
+        self.training = training
+        self.label_mapping = self._extract_label_mapping(split_path)
+        self.sequences = self._extract_sequence_paths(dataset_path, split_path, split_number, training)
+        self.sequence_length = sequence_length
+        keep_i = [i for i, seq_path in enumerate(self.sequences) if len(os.listdir(seq_path)) >= sequence_length]
+        self.sequences = [x for i, x in enumerate(self.sequences) if i in keep_i]
+        self.label_names = sorted(list(set([self._activity_from_path(seq_path) for seq_path in self.sequences])))
+        self.num_classes = len(self.label_names)
         self.transform = transforms.Compose(
             [
-                transforms.Resize((height, width), Image.BICUBIC),
+                transforms.Resize(input_shape[-2:], Image.BICUBIC),
                 transforms.ToTensor(),
                 transforms.Normalize(mean, std),
             ]
         )
-        self.sequence_length = sequence_length
-        self.sequences = sorted(
-            [
-                seq_path
-                for i, seq_path in enumerate(glob.glob(f"{dataset_path}/*/*"))
-                if len(os.listdir(seq_path)) >= sequence_length and i in indices
-            ]
-        )
-        self.labels = sorted(list(set([self._label_from_path(seq_path) for seq_path in self.sequences])))
-        self.num_classes = len(self.labels)
-        self.training = training
 
-    def _label_from_path(self, path):
+    def _extract_label_mapping(self, split_path="data/ucfTrainTestlist"):
+        with open(os.path.join(split_path, "classInd.txt")) as file:
+            lines = file.read().splitlines()
+        label_mapping = {}
+        for line in lines:
+            label, action = line.split()
+            label_mapping[action] = int(label)
+        return label_mapping
+
+    def _extract_sequence_paths(
+        self, dataset_path, split_path="data/ucfTrainTestlist", split_number=1, training=True
+    ):
+        assert split_number in [1, 2, 3], "Split number has to be one of {1, 2, 3}"
+        fn = f"trainlist0{split_number}.txt" if training else f"testlist0{split_number}.txt"
+        split_path = os.path.join(split_path, fn)
+        with open(split_path) as file:
+            lines = file.read().splitlines()
+        sequence_paths = []
+        for line in lines:
+            seq_path = line.split()[0]
+            sequence_paths += [os.path.join(dataset_path, seq_path.split(".avi")[0])]
+            self
+        return sequence_paths
+
+    def _activity_from_path(self, path):
         return path.split("/")[-2]
 
     def _frame_number(self, image_path):
@@ -58,8 +78,8 @@ class Dataset(Dataset):
             if len(image_sequence) < self.sequence_length:
                 image_sequence.append(self.transform(Image.open(image_path)))
         image_sequence = torch.stack(image_sequence)
-        label = self._label_from_path(sequence_path)
-        return image_sequence, self.labels.index(label)
+        target = self.label_mapping[self._activity_from_path(sequence_path)] - 1
+        return image_sequence, target
 
     def __len__(self):
         return len(self.sequences)
