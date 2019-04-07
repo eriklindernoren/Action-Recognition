@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=100, help="Number of training epochs")
     parser.add_argument("--batch_size", type=int, default=16, help="Size of each training batch")
     parser.add_argument("--sequence_length", type=int, default=40, help="Number of frames in each sequence")
-    parser.add_argument("--img_dim", type=int, default=112, help="Height / width dimension")
+    parser.add_argument("--img_dim", type=int, default=224, help="Height / width dimension")
     parser.add_argument("--channels", type=int, default=3, help="Number of image channels")
     parser.add_argument("--latent_dim", type=int, default=512, help="Dimensionality of the latent representation")
     parser.add_argument("--checkpoint_model", type=str, default="", help="Optional path to checkpoint model")
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         split_path=opt.split_path,
         split_number=opt.split_number,
         input_shape=image_shape,
-        sequence_length=100,
+        sequence_length=opt.sequence_length,
         training=False,
     )
     test_dataloader = DataLoader(test_dataset, batch_size=opt.batch_size, shuffle=False, num_workers=4)
@@ -64,6 +64,7 @@ if __name__ == "__main__":
         lstm_layers=1,
         hidden_dim=1024,
         bidirectional=True,
+        attention=True,
     )
     model = model.to(device)
 
@@ -86,16 +87,9 @@ if __name__ == "__main__":
                 model.lstm.reset_hidden_state()
                 # Get sequence predictions
                 predictions = model(image_sequences)
-                loss = 0
-                # Update loss and prediction histogram at each timestep
-                pred_hists = np.zeros((predictions.size(0), predictions.size(-1)))
-                for t in range(opt.sequence_length):
-                    # Update classification loss
-                    loss += cls_criterion(predictions[:, t], labels).item() / opt.sequence_length
-                    # Update prediction histogram
-                    pred_hists[:, predictions[:, t].argmax(1).cpu().numpy()] += 1
-            # Compute accuracy using the most common prediction for each sequence
-            acc = 100 * np.mean(pred_hists.argmax(1) == labels.cpu().numpy())
+            # Compute metrics
+            acc = 100 * (predictions.detach().argmax(1) == labels).cpu().numpy().mean()
+            loss = cls_criterion(predictions, labels).item()
             # Keep track of loss and accuracy
             test_metrics["loss"].append(loss)
             test_metrics["acc"].append(acc)
@@ -120,6 +114,9 @@ if __name__ == "__main__":
         print(f"--- Epoch {epoch} ---")
         for batch_i, (X, y) in enumerate(train_dataloader):
 
+            if X.size(0) == 1:
+                continue
+
             image_sequences = Variable(X.to(device), requires_grad=True)
             labels = Variable(y.to(device), requires_grad=False)
 
@@ -131,17 +128,9 @@ if __name__ == "__main__":
             # Get sequence predictions
             predictions = model(image_sequences)
 
-            loss = 0
-            # Update loss and prediction histogram at each timestep
-            pred_hists = np.zeros((opt.batch_size, train_dataset.num_classes))
-            for t in range(opt.sequence_length):
-                # Update classification loss
-                loss += cls_criterion(predictions[:, t], labels) / opt.sequence_length
-                # Update prediction histogram
-                pred_hists[:, predictions[:, t].argmax(1).cpu().numpy()] += 1
-
-            # Compute accuracy using the most common prediction for each sequence
-            acc = 100 * np.mean(pred_hists.argmax(1) == labels.cpu().numpy())
+            # Compute metrics
+            loss = cls_criterion(predictions, labels)
+            acc = 100 * (predictions.detach().argmax(1) == labels).cpu().numpy().mean()
 
             loss.backward()
             optimizer.step()

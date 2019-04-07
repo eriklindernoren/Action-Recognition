@@ -32,16 +32,9 @@ class Encoder(nn.Module):
 
 
 class LSTM(nn.Module):
-    def __init__(self, latent_dim, num_classes, num_layers, hidden_dim, bidirectional):
+    def __init__(self, latent_dim, num_layers, hidden_dim, bidirectional):
         super(LSTM, self).__init__()
         self.lstm = nn.LSTM(latent_dim, hidden_dim, num_layers, batch_first=True, bidirectional=bidirectional)
-        self.output_layers = nn.Sequential(
-            nn.Linear(2 * hidden_dim if bidirectional else hidden_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim, momentum=0.01),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, num_classes),
-            nn.Softmax(dim=-1),
-        )
         self.hidden_state = None
 
     def reset_hidden_state(self):
@@ -49,10 +42,34 @@ class LSTM(nn.Module):
 
     def forward(self, x):
         x, self.hidden_state = self.lstm(x, self.hidden_state)
-        preds = []
-        for t in range(x.size(1)):
-            preds += [self.output_layers(x[:, t]).unsqueeze(1)]
-        return torch.cat(preds, 1)
+        return x
+
+
+##############################
+#      Attention Module
+##############################
+
+
+class Attention(nn.Module):
+    def __init__(self, latent_dim, hidden_dim, attention_dim):
+        super(Attention, self).__init__()
+        self.latent_attention = nn.Linear(latent_dim, attention_dim)
+        self.hidden_attention = nn.Linear(hidden_dim, attention_dim)
+        self.joint_attention = nn.Linear(attention_dim, 1)
+
+    def forward(self, latent_repr, hidden_repr):
+        if hidden_repr is None:
+            hidden_repr = [
+                Variable(
+                    torch.zeros(latent_repr.size(0), 1, self.hidden_attention.in_features), requires_grad=False
+                ).float()
+            ]
+        h_t = hidden_repr[0]
+        latent_att = self.latent_attention(latent_att)
+        hidden_att = self.hidden_attention(h_t)
+        joint_att = self.joint_attention(F.relu(latent_att + hidden_att)).squeeze(-1)
+        attention_w = F.softmax(joint_att, dim=-1)
+        return attention_w
 
 
 ##############################
@@ -61,10 +78,21 @@ class LSTM(nn.Module):
 
 
 class ConvLSTM(nn.Module):
-    def __init__(self, num_classes, latent_dim=512, lstm_layers=1, hidden_dim=1024, bidirectional=True):
+    def __init__(
+        self, num_classes, latent_dim=512, lstm_layers=1, hidden_dim=1024, bidirectional=True, attention=True
+    ):
         super(ConvLSTM, self).__init__()
         self.encoder = Encoder(latent_dim)
-        self.lstm = LSTM(latent_dim, num_classes, lstm_layers, hidden_dim, bidirectional)
+        self.lstm = LSTM(latent_dim, lstm_layers, hidden_dim, bidirectional)
+        self.output_layers = nn.Sequential(
+            nn.Linear(2 * hidden_dim if bidirectional else hidden_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim, momentum=0.01),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, num_classes),
+            nn.Softmax(dim=-1),
+        )
+        self.attention = attention
+        self.attention_layer = nn.Linear(2 * hidden_dim if bidirectional else hidden_dim, 1)
 
     def forward(self, x):
         batch_size, seq_length, c, h, w = x.shape
@@ -72,7 +100,12 @@ class ConvLSTM(nn.Module):
         x = self.encoder(x)
         x = x.view(batch_size, seq_length, -1)
         x = self.lstm(x)
-        return x
+        if self.attention:
+            attention_w = F.softmax(self.attention_layer(x).squeeze(-1), dim=-1)
+            x = torch.sum(attention_w.unsqueeze(-1) * x, dim=1)
+        else:
+            x = x[:, -1]
+        return self.output_layers(x)
 
 
 ##############################

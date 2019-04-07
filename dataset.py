@@ -14,19 +14,11 @@ std = np.array([0.229, 0.224, 0.225])
 
 
 class Dataset(Dataset):
-    def __init__(self, dataset_path, split_path, split_number, input_shape, sequence_length=40, training=True):
+    def __init__(self, dataset_path, split_path, split_number, input_shape, sequence_length, training):
         self.training = training
         self.label_index = self._extract_label_mapping(split_path)
         self.sequences = self._extract_sequence_paths(dataset_path, split_path, split_number, training)
         self.sequence_length = sequence_length
-        if self.sequence_length is not None:
-            # Filter out sequences shorter than sequence_length
-            keep_i = [
-                i
-                for i, seq_path in enumerate(self.sequences)
-                len(os.listdir(seq_path)) >= sequence_length
-            ]
-            self.sequences = [x for i, x in enumerate(self.sequences) if i in keep_i]
         self.label_names = sorted(list(set([self._activity_from_path(seq_path) for seq_path in self.sequences])))
         self.num_classes = len(self.label_names)
         self.transform = transforms.Compose(
@@ -70,10 +62,20 @@ class Dataset(Dataset):
         """ Extracts frame number from filepath """
         return int(image_path.split("/")[-1].split(".jpg")[0])
 
+    def _pad_to_length(self, sequence):
+        """ Pads the sequence to required sequence length """
+        left_pad = sequence[0]
+        if self.sequence_length is not None:
+            while len(sequence) < self.sequence_length:
+                sequence.insert(0, left_pad)
+        return sequence
+
     def __getitem__(self, index):
         sequence_path = self.sequences[index % len(self)]
         # Sort frame sequence based on frame number
         image_paths = sorted(glob.glob(f"{sequence_path}/*.jpg"), key=lambda path: self._frame_number(path))
+        # Pad frames sequences shorter than `self.sequence_length` to length
+        image_paths = self._pad_to_length(image_paths)
         if self.training:
             # Randomly choose sample interval and start frame
             sample_interval = np.random.randint(1, len(image_paths) // self.sequence_length + 1)
