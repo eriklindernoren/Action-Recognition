@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     # Extract predictions
     output_frames = []
-    for frame in tqdm.tqdm(extract_frames(opt.video_path), desc="Processing frames"):
+    for frame in tqdm.tqdm(extract_frames(opt.video_path,0), desc="Processing frames"):
         image_tensor = Variable(transform(frame)).to(device)
         image_tensor = image_tensor.view(1, 1, *image_tensor.shape)
 
