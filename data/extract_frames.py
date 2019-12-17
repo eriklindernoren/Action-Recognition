@@ -11,7 +11,7 @@ import datetime
 import argparse
 
 
-def extract_frames(video_path):
+def extract_frames(video_path, time_left):
     frames = []
     video = av.open(video_path)
     for frame in video.decode(0):
